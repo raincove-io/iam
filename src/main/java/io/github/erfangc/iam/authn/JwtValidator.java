@@ -1,4 +1,4 @@
-package io.github.erfangc.iam;
+package io.github.erfangc.iam.authn;
 
 import com.auth0.jwk.Jwk;
 import com.auth0.jwk.JwkException;
@@ -9,6 +9,7 @@ import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import org.springframework.stereotype.Service;
 
 import java.security.interfaces.RSAPublicKey;
 import java.util.concurrent.TimeUnit;
@@ -21,25 +22,17 @@ import java.util.concurrent.TimeUnit;
  * The {@link JwtValidator#decodeAndVerify(String)} method not only verifies the signature but also produces a {@link DecodedJWT} instance
  * from which the caller can extract claims (such as the identity of the principal)
  */
+@Service
 public class JwtValidator {
 
     private String issuer = System.getenv("ISSUER");
     private String audience = System.getenv("AUDIENCE");
     private final JwkProvider jwkProvider;
 
-    private static JwtValidator instance;
-
-    private JwtValidator() {
+    public JwtValidator() {
         jwkProvider = new JwkProviderBuilder(issuer)
                 .cached(5, 10, TimeUnit.HOURS)
                 .build();
-    }
-
-    public static synchronized JwtValidator getInstance() {
-        if (instance == null) {
-            instance = new JwtValidator();
-        }
-        return instance;
     }
 
     public DecodedJWT decodeAndVerify(String token) {

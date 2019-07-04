@@ -1,9 +1,10 @@
-package io.github.erfangc.iam;
+package io.github.erfangc.iam.authn;
 
 import feign.Body;
 import feign.Headers;
 import feign.Param;
 import feign.RequestLine;
+import io.github.erfangc.iam.authn.models.Credentials;
 
 public interface Auth0Client {
     @RequestLine("POST /oauth/token")

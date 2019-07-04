@@ -1,9 +1,10 @@
-package io.github.erfangc.iam;
+package io.github.erfangc.iam.authn;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import feign.Feign;
 import feign.jackson.JacksonDecoder;
 import feign.jackson.JacksonEncoder;
+import io.github.erfangc.iam.authn.models.Credentials;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -40,8 +41,8 @@ public class CallbackController {
         final HttpSession httpSession = authorizationCodeExchange(httpServletRequest);
         Map<String, List<String>> mvm = new HashMap<>();
         String redirectUrl = "/";
-        if (httpSession.getAttribute(X_ORIGINAL_URI) != null) {
-            redirectUrl = ((String) httpSession.getAttribute(X_ORIGINAL_URI));
+        if (httpSession.getAttribute(X_AUTH_REQUEST_REDIRECT) != null) {
+            redirectUrl = ((String) httpSession.getAttribute(X_AUTH_REQUEST_REDIRECT));
         }
         mvm.put("Location", singletonList(redirectUrl));
         MultiValueMap<String, String> headers = toMultiValueMap(mvm);

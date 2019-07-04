@@ -1,4 +1,4 @@
-package io.github.erfangc.iam;
+package io.github.erfangc.iam.authn.models;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

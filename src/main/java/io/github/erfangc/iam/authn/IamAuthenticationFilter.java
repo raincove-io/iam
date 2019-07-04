@@ -1,6 +1,9 @@
-package io.github.erfangc.iam;
+package io.github.erfangc.iam.authn;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
+import io.github.erfangc.iam.Utilities;
+import io.github.erfangc.iam.authn.models.Credentials;
+import io.github.erfangc.iam.authn.models.Operation;
 import org.apache.tomcat.util.codec.binary.Base64;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -42,8 +45,10 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
      * A list of {@link Operation} that does not require authentication
      */
     private final Set<Operation> noAuthOperations;
+    private JwtValidator jwtValidator;
 
-    public IamAuthenticationFilter() {
+    public IamAuthenticationFilter(JwtValidator jwtValidator) {
+        this.jwtValidator = jwtValidator;
         noAuthOperations = new HashSet<>();
         noAuthOperations.add(
                 new Operation()
@@ -105,7 +110,7 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
             }
-            httpServletRequest.setAttribute("sub", sub);
+            httpServletRequest.setAttribute(SUB, sub);
             filterChain.doFilter(httpServletRequest, httpServletResponse);
         }
     }
@@ -130,12 +135,12 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
             logger.info("Unable to authenticate user using session, attempting to redirect requester to authorize URL for logging in, error=" + e.getMessage());
             final String state = secureRandomString();
             session.setAttribute(STATE, state);
-            String xOriginalUri = httpServletRequest.getHeader(X_ORIGINAL_URI);
-            if (xOriginalUri == null) {
-                xOriginalUri = httpServletRequest.getRequestURI();
+            String redirectUri = httpServletRequest.getHeader(X_AUTH_REQUEST_REDIRECT);
+            if (redirectUri == null) {
+                redirectUri = httpServletRequest.getRequestURI();
             }
-            if (xOriginalUri != null) {
-                session.setAttribute(X_ORIGINAL_URI, xOriginalUri);
+            if (redirectUri != null) {
+                session.setAttribute(X_AUTH_REQUEST_REDIRECT, redirectUri);
             }
             //
             // store a randomly generated state into the session before redirecting the requester to login with our Idp
@@ -183,8 +188,7 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
      */
     private DecodedJWT validateAccessToken(String accessToken) throws UnauthenticatedException {
         try {
-            final JwtValidator instance = JwtValidator.getInstance();
-            return instance.decodeAndVerify(accessToken);
+            return jwtValidator.decodeAndVerify(accessToken);
         } catch (Exception e) {
             throw new UnauthenticatedException(e);
         }

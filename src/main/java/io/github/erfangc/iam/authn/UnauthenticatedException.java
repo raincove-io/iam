@@ -1,4 +1,4 @@
-package io.github.erfangc.iam;
+package io.github.erfangc.iam.authn;
 
 public class UnauthenticatedException extends RuntimeException {
     public UnauthenticatedException() {
