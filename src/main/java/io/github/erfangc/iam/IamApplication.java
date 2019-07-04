@@ -19,6 +19,7 @@ public class IamApplication {
 		// validate environment
 		//
 		Set<String> requiredEnvVars = new HashSet<>();
+		requiredEnvVars.add("REDIS_HOST");
 		requiredEnvVars.add("ISSUER");
 		requiredEnvVars.add("CLIENT_ID");
 		requiredEnvVars.add("CLIENT_SECRET");
