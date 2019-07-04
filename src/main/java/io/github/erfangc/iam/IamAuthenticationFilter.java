@@ -119,10 +119,6 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
         // create or get a session based on cookie value
         //
         final HttpSession session = httpServletRequest.getSession(true);
-        final String xOriginalUri = httpServletRequest.getHeader(X_ORIGINAL_URI);
-        if (xOriginalUri != null) {
-            session.setAttribute(X_ORIGINAL_URI, xOriginalUri);
-        }
         try {
             //
             // attempts to retrieve and validate the access token from session, if this fails the user must login again
@@ -134,6 +130,13 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
             logger.info("Unable to authenticate user using session, attempting to redirect requester to authorize URL for logging in, error=" + e.getMessage());
             final String state = secureRandomString();
             session.setAttribute(STATE, state);
+            String xOriginalUri = httpServletRequest.getHeader(X_ORIGINAL_URI);
+            if (xOriginalUri == null) {
+                xOriginalUri = httpServletRequest.getRequestURI();
+            }
+            if (xOriginalUri != null) {
+                session.setAttribute(X_ORIGINAL_URI, xOriginalUri);
+            }
             //
             // store a randomly generated state into the session before redirecting the requester to login with our Idp
             // when the login flow is complete, our /callback endpoint will validate the state generated here with the one
