@@ -1,0 +1,32 @@
+#
+# to run the job
+#
+version: 2.1
+jobs:
+  build_and_deploy:
+    machine:
+      image: circleci/classic:latest
+    steps:
+      - checkout
+      - run: |
+          if [ -n "$CIRCLE_TAG" ]
+          then
+            VERSION=$CIRCLE_TAG
+          else
+            VERSION=latest
+          fi
+          echo Building project for VERSION=$VERSION
+          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+          docker build . -t erfangc/$CIRCLE_PROJECT_REPONAME:$VERSION
+          docker push erfangc/$CIRCLE_PROJECT_REPONAME:$VERSION
+workflows:
+  version: 2
+  default:
+    jobs:
+      - build_and_deploy:
+          context: default
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
