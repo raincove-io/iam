@@ -1,0 +1,9 @@
+---
+id: workers
+policies:
+  - resource: /inventories/*
+    actions:
+      - GET
+      - OPTIONS
+      - PUT
+      - POST

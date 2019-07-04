@@ -1,0 +1,7 @@
+---
+id: users
+policies:
+  - resource: /inventories/*
+    actions:
+      - GET
+      - OPTIONS

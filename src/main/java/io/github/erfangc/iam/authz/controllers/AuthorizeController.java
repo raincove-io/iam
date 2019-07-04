@@ -1,6 +1,7 @@
 package io.github.erfangc.iam.authz.controllers;
 
 import io.github.erfangc.iam.authz.models.AuthorizeResponse;
+import io.github.erfangc.iam.authz.services.AuthorizeService;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -13,6 +14,12 @@ import static org.springframework.web.bind.annotation.RequestMethod.GET;
 @Controller
 @RequestMapping("/iam/api/v1")
 public class AuthorizeController {
+    private AuthorizeService authorizeService;
+
+    public AuthorizeController(AuthorizeService authorizeService) {
+        this.authorizeService = authorizeService;
+    }
+
     @RequestMapping(
             method = GET,
             path = "/_authorize",
@@ -27,6 +34,6 @@ public class AuthorizeController {
         String resource = httpServletRequest.getHeader("X-Auth-Request-Redirect");
         String verb = httpServletRequest.getHeader("X-Original-Method");
         String sub = httpServletRequest.getAttribute(SUB).toString();
-        throw new UnsupportedOperationException();
+        return authorizeService.authorizeRequest(resource, verb, sub);
     }
 }
