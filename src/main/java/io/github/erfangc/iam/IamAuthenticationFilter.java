@@ -1,7 +1,7 @@
 package io.github.erfangc.iam;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import org.apache.tomcat.util.codec.binary.Base64;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -12,7 +12,13 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+
+import static io.github.erfangc.iam.Utilities.*;
+import static java.util.Collections.singleton;
 
 /**
  * {@link IamAuthenticationFilter} invokes the session creation mechanism via spring-session-redis on requests that are not API calls. At the same time, this filter also
@@ -31,67 +37,154 @@ import java.time.Instant;
  */
 @Component
 public class IamAuthenticationFilter extends OncePerRequestFilter {
-    private static final String CREDENTIALS = "credentials";
-    private static final ObjectMapper objectMapper = new ObjectMapper()
-            .findAndRegisterModules().
-                    configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    /**
+     * A list of {@link Operation} that does not require authentication
+     */
+    private final Set<Operation> noAuthOperations;
+
+    public IamAuthenticationFilter() {
+        noAuthOperations = new HashSet<>();
+        noAuthOperations.add(
+                new Operation()
+                        .setResource("/")
+                        .setVerbs(singleton("GET"))
+        );
+        noAuthOperations.add(
+                new Operation()
+                        .setResource("/iam/api/v1/callback")
+                        .setVerbs(singleton("GET"))
+        );
+    }
+
+    private boolean allowUnauthenticated(HttpServletRequest httpServletRequest) {
+        final String resource = httpServletRequest.getRequestURI();
+        final String verb = httpServletRequest.getMethod();
+        for (Operation noAuthOperation : noAuthOperations) {
+            if (noAuthOperation.getVerbs().contains(verb) && noAuthOperation.getResource().equals(resource)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, FilterChain filterChain) throws ServletException, IOException {
-        final String authorization = httpServletRequest.getHeader(HttpHeaders.AUTHORIZATION);
-        final boolean isApiCall = authorization != null && authorization.startsWith("Bearer ");
-        String authenticatedPrincipal = null;
-        try {
+        //
+        // let the callback pass through without authentication
+        //
+        if (allowUnauthenticated(httpServletRequest)) {
+            doFilter(httpServletRequest, httpServletResponse, filterChain);
+        } else {
+            final String authorization = httpServletRequest.getHeader(HttpHeaders.AUTHORIZATION);
+            final boolean isApiCall = authorization != null && authorization.startsWith("Bearer ");
+            DecodedJWT decodedJwt;
+            String sub;
             if (isApiCall) {
                 // handle JWT based authentication
-                authenticatedPrincipal = validateAccessToken(extractAccessToken(authorization));
+                try {
+                    decodedJwt = validateAccessToken(extractAccessToken(authorization));
+                    logger.info("Authenticated API request for principal=" + decodedJwt.getSubject());
+                    sub = decodedJwt.getSubject();
+                } catch (UnauthenticatedException exception) {
+                    // 401
+                    httpServletResponse.setHeader("Content-Type", "application/json");
+                    httpServletResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    httpServletResponse.getOutputStream().write(("{\"message\":\"Bearer token is not valid or is expired\", \"timestamp\": \"" + Instant.now().toString() + "\"}").getBytes());
+                    logger.info("Anonymous access prohibited for API calls");
+                    return;
+                }
             } else {
                 // handle session based authentication
-                authenticatedPrincipal = validateSession(httpServletRequest);
+                decodedJwt = validateSession(httpServletRequest, httpServletResponse);
+                if (decodedJwt != null) {
+                    logger.info("Authenticated request for principal=" + decodedJwt.getSubject());
+                    sub = decodedJwt.getSubject();
+                } else {
+                    logger.info("Unable to authenticate web request");
+                    return;
+                }
             }
-        } catch (UnauthenticatedException exception) {
-            // depending on whether the request has an authorization header we will either return 401 or 302
-            if (isApiCall) {
-                // 401
-                httpServletResponse.setHeader("Content-Type", "application/json");
-                httpServletResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                httpServletResponse.getOutputStream().write(("{\"message\":\"Bearer token is not valid or is expired\", \"timestamp\": \"" + Instant.now().toString() + "\"}").getBytes());
-                logger.info("Anonymous access prohibited for API calls");
-                return;
-            } else {
-                // 302 (redirect to IdP for login)
-                // TODO construct authorize URL
-                httpServletResponse.setHeader("Location", "https://raincove.auth0.com/authorize?...");
-                httpServletResponse.setStatus(HttpServletResponse.SC_MOVED_TEMPORARILY);
-                logger.info("Anonymous access prohibited, redirecting to login URL");
-                return;
-            }
+            httpServletRequest.setAttribute("sub", sub);
+            filterChain.doFilter(httpServletRequest, httpServletResponse);
         }
-        logger.info("Authenticated request for principal=" + authenticatedPrincipal);
-        filterChain.doFilter(httpServletRequest, httpServletResponse);
     }
 
     private String extractAccessToken(String authorization) {
         return authorization.replaceFirst("^Bearer ", authorization);
     }
 
-    private String validateSession(HttpServletRequest httpServletRequest) throws UnauthenticatedException {
-        final HttpSession session = httpServletRequest.getSession();
-        if (session == null) {
-            throw new UnauthenticatedException();
-        } else {
+    private DecodedJWT validateSession(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws UnauthenticatedException {
+        //
+        // create or get a session based on cookie value
+        //
+        final HttpSession session = httpServletRequest.getSession(true);
+        final String xOriginalUri = httpServletRequest.getHeader(X_ORIGINAL_URI);
+        if (xOriginalUri != null) {
+            session.setAttribute(X_ORIGINAL_URI, xOriginalUri);
+        }
+        try {
+            //
+            // attempts to retrieve and validate the access token from session, if this fails the user must login again
+            //
+            Credentials credentials = Utilities.objectMapper.readValue((String) session.getAttribute(CREDENTIALS), Credentials.class);
+            final String accessToken = credentials.getAccessToken();
+            return validateAccessToken(accessToken);
+        } catch (Exception e) {
+            logger.info("Unable to authenticate user using session, attempting to redirect requester to authorize URL for logging in, error=" + e.getMessage());
+            final String state = secureRandomString();
+            session.setAttribute(STATE, state);
+            //
+            // store a randomly generated state into the session before redirecting the requester to login with our Idp
+            // when the login flow is complete, our /callback endpoint will validate the state generated here with the one
+            // passed back to us via the Idp redirect
+            //
+            String callback = System.getenv("CALLBACK");
+            String audience = System.getenv("AUDIENCE");
+            String issuer = System.getenv("ISSUER");
+            String scope = "openid profile email";
+            String clientId = System.getenv("CLIENT_ID");
+            final String authorizeUrl = issuer
+                    + "authorize?response_type=code&audience=" + audience
+                    + "&state=" + state
+                    + "&client_id=" + clientId
+                    + "&redirect_uri=" + callback
+                    + "&scope=" + scope;
             try {
-                Credentials credentials = objectMapper.readValue((String) session.getAttribute(CREDENTIALS), Credentials.class);
-                final String accessToken = credentials.getAccessToken();
-                return validateAccessToken(accessToken);
-            } catch (Exception e) {
-                throw new UnauthenticatedException(e);
+                httpServletResponse.sendRedirect(authorizeUrl);
+                return null;
+            } catch (Exception e1) {
+                throw new UnauthenticatedException(e1);
             }
         }
     }
 
-    private String validateAccessToken(String accessToken) throws UnauthenticatedException {
-        // TODO
-        throw new UnsupportedOperationException();
+    /**
+     * Generates a new random string using {@link SecureRandom}.
+     * The output can be used as State or Nonce values for API requests.
+     *
+     * @return a new random string.
+     */
+    private static String secureRandomString() {
+        final SecureRandom sr = new SecureRandom();
+        final byte[] randomBytes = new byte[32];
+        sr.nextBytes(randomBytes);
+        return Base64.encodeBase64URLSafeString(randomBytes);
     }
+
+    /**
+     * Validates the access token provided using the trusted issuer
+     *
+     * @param accessToken the token to validate
+     * @return the validated principal
+     */
+    private DecodedJWT validateAccessToken(String accessToken) throws UnauthenticatedException {
+        try {
+            final JwtValidator instance = JwtValidator.getInstance();
+            return instance.decodeAndVerify(accessToken);
+        } catch (Exception e) {
+            throw new UnauthenticatedException(e);
+        }
+    }
+
 }
