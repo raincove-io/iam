@@ -25,6 +25,7 @@ public class IamApplication {
 		requiredEnvVars.add("CLIENT_SECRET");
 		requiredEnvVars.add("AUDIENCE");
 		requiredEnvVars.add("CALLBACK");
+		requiredEnvVars.add("ROOT_USERS");
 
 		Set<String> missingEnvVars = new HashSet<>();
 		Map<String, String> envs = System.getenv();

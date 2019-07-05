@@ -59,49 +59,88 @@ public class AuthorizeServiceTest {
 
     @Test
     public void test1() {
-        assertTrue(authorizeService.authorizeRequest("/inventories/product1", "GET", "joe").getAllowed());
+        AccessRequest accessRequest = new AccessRequest().setResource("/inventories/product1").setAction("GET").setSub("joe");
+        assertTrue(authorizeService.authorizeRequest(accessRequest).getAllowed());
     }
 
     @Test
     public void test2() {
-        assertFalse(authorizeService.authorizeRequest("/inventories/product1", "PUT", "joe").getAllowed());
+        AccessRequest accessRequest = new AccessRequest().setSub("joe").setAction("PUT").setResource("/inventories/product1");
+        assertFalse(authorizeService.authorizeRequest(accessRequest).getAllowed());
     }
 
     @Test
     public void test3() {
-        assertTrue(authorizeService.authorizeRequest("/inventories/product1", "PUT", "jack").getAllowed());
+        AccessRequest accessRequest = new AccessRequest().setResource("/inventories/product1").setAction("PUT").setSub("jack");
+        assertTrue(authorizeService.authorizeRequest(accessRequest).getAllowed());
     }
 
     @Test
     public void test4() {
-        assertFalse(authorizeService.authorizeRequest("/inventories/product1", "GET", "noone").getAllowed());
+        AccessRequest accessRequest = new AccessRequest()
+                .setResource("/inventories/product1")
+                .setAction("GET")
+                .setSub("noone");
+        assertFalse(authorizeService.authorizeRequest(accessRequest).getAllowed());
     }
 
     @Test
     public void test5() {
-        assertTrue(authorizeService.authorizeRequest("/inventories/third-party-product1", "PUT", "joe").getAllowed());
+        AccessRequest accessRequest = new AccessRequest()
+                .setResource("/inventories/third-party-product1")
+                .setAction("PUT")
+                .setSub("joe");
+        assertTrue(authorizeService.authorizeRequest(accessRequest).getAllowed());
         bindingsService.deleteBinding("contractors", "joe-as-contractor");
-        assertFalse(authorizeService.authorizeRequest("/inventories/third-party-product1", "PUT", "joe").getAllowed());
+        AccessRequest accessRequest2 = new AccessRequest()
+                .setResource("/inventories/third-party-product1")
+                .setAction("PUT")
+                .setSub("joe");
+        assertFalse(authorizeService.authorizeRequest(accessRequest2).getAllowed());
     }
 
     @Test
     public void test6() {
-        assertTrue(authorizeService.authorizeRequest("/inventories/third-party-product1", "PUT", "joe").getAllowed());
+        AccessRequest accessRequest = new AccessRequest()
+                .setResource("/inventories/third-party-product1")
+                .setAction("PUT")
+                .setSub("joe");
+        assertTrue(authorizeService.authorizeRequest(accessRequest).getAllowed());
         rolesService.deleteRole("contractors");
-        assertFalse(authorizeService.authorizeRequest("/inventories/third-party-product1", "PUT", "joe").getAllowed());
+        assertFalse(authorizeService.authorizeRequest(accessRequest).getAllowed());
     }
 
     @Test
     public void test7() {
-        assertFalse(authorizeService.authorizeRequest("/esoteric-resource/foobar", "GET", "joe").getAllowed());
-        assertFalse(authorizeService.authorizeRequest("/esoteric-resource/foobar", "GET", "john").getAllowed());
-        assertFalse(authorizeService.authorizeRequest("/esoteric-resource/foobar", "GET", "noone").getAllowed());
-        assertTrue(authorizeService.authorizeRequest("/esoteric-resource/foobar", "GET", "jack").getAllowed());
+        AccessRequest accessRequest1 = new AccessRequest()
+                .setResource("/esoteric-resource/foobar")
+                .setAction("GET")
+                .setSub("joe");
+        assertFalse(authorizeService.authorizeRequest(accessRequest1).getAllowed());
+        AccessRequest accessRequest2 = new AccessRequest()
+                .setResource("/esoteric-resource/foobar")
+                .setAction("GET")
+                .setSub("john");
+        assertFalse(authorizeService.authorizeRequest(accessRequest2).getAllowed());
+        AccessRequest accessRequest3 = new AccessRequest()
+                .setResource("/esoteric-resource/foobar")
+                .setAction("GET")
+                .setSub("noone");
+        assertFalse(authorizeService.authorizeRequest(accessRequest3).getAllowed());
+        AccessRequest accessRequest4 = new AccessRequest()
+                .setResource("/esoteric-resource/foobar")
+                .setAction("GET")
+                .setSub("jack");
+        assertTrue(authorizeService.authorizeRequest(accessRequest4).getAllowed());
     }
 
     @Test
     public void test8() {
-        assertFalse(authorizeService.authorizeRequest("/esoteric-resource/foobar", "GET", "joe").getAllowed());
+        AccessRequest accessRequest1 = new AccessRequest()
+                .setResource("/esoteric-resource/foobar")
+                .setAction("GET")
+                .setSub("joe");
+        assertFalse(authorizeService.authorizeRequest(accessRequest1).getAllowed());
         final CreateOrUpdateBindingRequest body = new CreateOrUpdateBindingRequest()
                 .setBinding(
                         new Binding()
@@ -110,6 +149,10 @@ public class AuthorizeServiceTest {
                                 .setPrincipalId("joe")
                 );
         bindingsService.createOrUpdateBinding(body, "admins");
-        assertTrue(authorizeService.authorizeRequest("/esoteric-resource/foobar", "GET", "joe").getAllowed());
+        AccessRequest accessRequest2 = new AccessRequest()
+                .setResource("/esoteric-resource/foobar")
+                .setAction("GET")
+                .setSub("joe");
+        assertTrue(authorizeService.authorizeRequest(accessRequest2).getAllowed());
     }
 }

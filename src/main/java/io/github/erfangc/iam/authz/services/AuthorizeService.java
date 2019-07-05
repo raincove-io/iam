@@ -22,16 +22,21 @@ import java.util.stream.Stream;
 import static io.github.erfangc.iam.Utilities.objectMapper;
 import static io.github.erfangc.iam.authz.services.Namespaces.bindingKey;
 import static io.github.erfangc.iam.authz.services.Namespaces.roleKey;
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 
 @Service
 public class AuthorizeService {
 
-    private StatefulRedisConnection<String, String> conn;
     private static final Logger logger = LoggerFactory.getLogger(AuthorizeService.class);
+    private StatefulRedisConnection<String, String> conn;
+    private List<String> rootUsers;
 
     public AuthorizeService(RedisClient redisClient) {
         conn = redisClient.connect();
+        final String getenv = System.getenv("ROOT_USERS");
+        rootUsers = asList((getenv == null ? "" : getenv).split(","));
+        logger.info("{} has started with root users={}", AuthorizeService.class.getSimpleName(), rootUsers);
     }
 
     private static String toRegex(String input) {
@@ -47,8 +52,18 @@ public class AuthorizeService {
                 .collect(joining("\\/"));
     }
 
-    public AuthorizeResponse authorizeRequest(String resource, String verb, String sub) {
+    public AuthorizeResponse authorizeRequest(AccessRequest accessRequest) {
         try {
+
+            //
+            // short circuit everything if a root user login. This is necessary to bootstrap the RBAC system
+            //
+            if (rootUsers.contains(accessRequest.getSub())) {
+                logger.info("Authorized root user access to sub={} resource={} action={}", accessRequest.getSub(), accessRequest.getResource(), accessRequest.getAction());
+                return allowed();
+            }
+
+            final String sub = accessRequest.getSub();
             final RedisCommands<String, String> sync = conn.sync();
             //
             // users only for now, but add support for groups in the future
@@ -56,6 +71,7 @@ public class AuthorizeService {
             String subRoleMappingNS = "iam:bindings:subs:";
             final Set<String> bindingIds = sync.smembers(subRoleMappingNS + "user:" + sub);
             if (bindingIds.isEmpty()) {
+                logger.info("Access is denied to sub={} resource={} action={}", accessRequest.getSub(), accessRequest.getResource(), accessRequest.getAction());
                 return denied();
             } else {
                 for (String bindingId : bindingIds) {
@@ -67,8 +83,7 @@ public class AuthorizeService {
                     final String roleKey = roleKey(roleId);
                     if (sync.exists(roleKey) == 1) {
                         Role role = objectMapper.readValue(sync.get(roleKey), Role.class);
-                        final List<Policy> policies = role.getPolicies();
-                        if (makeAccessDecision(policies, resource, verb, sub)) {
+                        if (makeAccessDecision(role, accessRequest)) {
                             return allowed();
                         }
                     } else {
@@ -76,18 +91,32 @@ public class AuthorizeService {
                     }
 
                 }
+                logger.info("Access is denied to sub={} resource={} action={}", accessRequest.getSub(), accessRequest.getResource(), accessRequest.getAction());
+                return denied();
             }
-            return denied();
         } catch (IOException e) {
             throw new ApiException(e).setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private boolean makeAccessDecision(List<Policy> policies, String resource, String action, String sub) {
+    private boolean makeAccessDecision(Role role, AccessRequest accessRequest) {
+        final List<Policy> policies = role.getPolicies();
+        final String action = accessRequest.getAction();
+        final String resource = accessRequest.getResource();
+        final String sub = accessRequest.getSub();
         for (Policy policy : policies) {
             boolean resourceMatch = resourceMatch(policy.getResource(), resource);
             boolean actionMatch = actionMatch(policy.getActions(), action);
             if (resourceMatch && actionMatch) {
+                logger.info(
+                        "Authorized access to sub={} resource={} action={} effectiveRoleId={} policyResource={} policyActions={}",
+                        sub,
+                        resource,
+                        action,
+                        role.getId(),
+                        policy.getResource(),
+                        policy.getActions()
+                );
                 return true;
             }
         }

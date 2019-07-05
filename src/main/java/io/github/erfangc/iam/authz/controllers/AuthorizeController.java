@@ -1,6 +1,7 @@
 package io.github.erfangc.iam.authz.controllers;
 
 import io.github.erfangc.iam.authz.models.AuthorizeResponse;
+import io.github.erfangc.iam.authz.services.AccessRequest;
 import io.github.erfangc.iam.authz.services.AuthorizeService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,9 +38,10 @@ public class AuthorizeController {
     @ResponseBody
     public ResponseEntity<AuthorizeResponse> authorizeRequest(HttpServletRequest httpServletRequest) {
         String resource = httpServletRequest.getHeader("X-Auth-Request-Redirect");
-        String verb = httpServletRequest.getHeader("X-Original-Method");
+        String action = httpServletRequest.getHeader("X-Original-Method");
         String sub = httpServletRequest.getAttribute(SUB).toString();
-        final AuthorizeResponse response = authorizeService.authorizeRequest(resource, verb, sub);
+        AccessRequest accessRequest = new AccessRequest().setAction(action).setResource(resource).setSub(sub);
+        final AuthorizeResponse response = authorizeService.authorizeRequest(accessRequest);
         if (response.getAllowed()) {
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
