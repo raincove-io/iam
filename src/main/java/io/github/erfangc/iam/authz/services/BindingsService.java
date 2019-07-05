@@ -17,14 +17,12 @@ import java.util.List;
 import java.util.Set;
 
 import static io.github.erfangc.iam.Utilities.objectMapper;
+import static io.github.erfangc.iam.authz.services.Namespaces.*;
 
 @Service
 public class BindingsService {
     private static final Logger logger = LoggerFactory.getLogger(BindingsService.class);
     private StatefulRedisConnection<String, String> conn;
-    private String bindingNS = "iam:bindings:";
-    private String subRoleMappingNS = "iam:bindings:subs:";
-    private String roleBindingMappingNS = "iam:bindings:roles:";
 
     public BindingsService(RedisClient redisClient) {
         conn = redisClient.connect();
@@ -32,10 +30,10 @@ public class BindingsService {
 
     public GetBindingsResponse getBindings(String roleId) {
         final RedisCommands<String, String> sync = conn.sync();
-        final Set<String> roleIds = sync.smembers(roleBindingMappingNS + roleId);
+        final Set<String> bindingIds = sync.smembers(roleBindingsKey(roleId));
         List<Binding> bindings = new ArrayList<>();
-        for (String rid : roleIds) {
-            final String json = sync.get(bindingNS + rid);
+        for (String bindingId : bindingIds) {
+            final String json = sync.get(bindingKey(bindingId));
             try {
                 final Binding binding = objectMapper.readValue(json, Binding.class);
                 bindings.add(binding);
@@ -61,7 +59,7 @@ public class BindingsService {
         final Binding binding = body.getBinding();
         binding.setRoleId(roleId);
         final String id = binding.getId();
-        final String pk = bindingNS + id;
+        final String pk = bindingKey(id);
         if (sync.exists(pk) == 1) {
             //
             // binding does not exist, this is not a create operation
@@ -74,8 +72,8 @@ public class BindingsService {
                 //
                 sync.multi();
                 sync.set(pk, objectMapper.writeValueAsString(binding));
-                sync.srem(subRoleMappingNS + existing.getPrincipalType() + ":" + existing.getPrincipalId(), existing.getId());
-                sync.sadd(subRoleMappingNS + binding.getPrincipalType() + ":" + binding.getPrincipalId(), binding.getId());
+                sync.srem(subBindingsKey(existing.getPrincipalType(), existing.getPrincipalId()), existing.getId());
+                sync.sadd(subBindingsKey(binding.getPrincipalType(), binding.getPrincipalId()), binding.getId());
                 sync.exec();
             } catch (Exception e) {
                 throw new ApiException(e)
@@ -89,8 +87,8 @@ public class BindingsService {
                 //
                 sync.multi();
                 sync.set(pk, objectMapper.writeValueAsString(binding));
-                sync.sadd(subRoleMappingNS + binding.getPrincipalType() + ":" + binding.getPrincipalId(), binding.getId());
-                sync.sadd(roleBindingMappingNS + roleId, id);
+                sync.sadd(subBindingsKey(binding.getPrincipalType(), binding.getPrincipalId()), binding.getId());
+                sync.sadd(roleBindingsKey(roleId), id);
                 sync.exec();
             } catch (Exception e) {
                 throw new ApiException(e)
@@ -103,7 +101,7 @@ public class BindingsService {
 
     public GetBindingResponse getBinding(String roleId, String id) {
         final RedisCommands<String, String> sync = conn.sync();
-        final String pk = bindingNS + id;
+        final String pk = bindingKey(id);
         final String json = sync.get(pk);
         if (json == null) {
             throw bindingNotFound(id);
@@ -118,7 +116,7 @@ public class BindingsService {
 
     public DeleteBindingResponse deleteBinding(String roleId, String id) {
         final RedisCommands<String, String> sync = conn.sync();
-        String pk = bindingNS + id;
+        String pk = bindingKey(id);
         if (sync.exists(pk) == 0) {
             throw bindingNotFound(id);
         }
@@ -126,8 +124,8 @@ public class BindingsService {
             final String json = sync.get(pk);
             final Binding binding = objectMapper.readValue(json, Binding.class);
             sync.multi();
-            sync.srem(subRoleMappingNS + binding.getPrincipalType() + ":" + binding.getPrincipalId(), binding.getId());
-            sync.srem(roleBindingMappingNS + roleId, id);
+            sync.srem(subBindingsKey(binding.getPrincipalType(), binding.getPrincipalId()), binding.getId());
+            sync.srem(roleBindingsKey(roleId), id);
             sync.del(pk);
             sync.exec();
             return new DeleteBindingResponse()

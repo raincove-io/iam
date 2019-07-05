@@ -48,7 +48,7 @@ public class RolesServiceTest {
 
     @Test
     public void getRoles() {
-        final Role admin = RoleProvider.forId("admin");
+        final Role admin = RoleProvider.forId("admins");
         final Role workers = RoleProvider.forId("workers");
         final Role users = RoleProvider.forId("users");
         rolesService.createOrUpdateRole(new CreateOrUpdateRoleRequest().setRole(admin));
@@ -60,7 +60,7 @@ public class RolesServiceTest {
 
     @Test
     public void createOrUpdateRole() {
-        final Role admin = RoleProvider.forId("admin");
+        final Role admin = RoleProvider.forId("admins");
         final CreateOrUpdateRoleResponse resp = rolesService.createOrUpdateRole(new CreateOrUpdateRoleRequest().setRole(admin));
         assertEquals("Created", resp.getMessage());
         admin.setPolicies(emptyList());

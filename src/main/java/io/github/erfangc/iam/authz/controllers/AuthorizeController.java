@@ -36,4 +36,5 @@ public class AuthorizeController {
         String sub = httpServletRequest.getAttribute(SUB).toString();
         return authorizeService.authorizeRequest(resource, verb, sub);
     }
+
 }

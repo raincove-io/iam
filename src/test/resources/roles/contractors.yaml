@@ -1,0 +1,8 @@
+id: contractors
+policies:
+  - resource: /inventories/third-party-product1
+    actions:
+      - GET
+      - OPTIONS
+      - PUT
+      - POST

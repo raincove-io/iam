@@ -17,13 +17,14 @@ import java.util.List;
 import java.util.Set;
 
 import static io.github.erfangc.iam.Utilities.objectMapper;
+import static io.github.erfangc.iam.authz.services.Namespaces.ROLE_NS;
+import static io.github.erfangc.iam.authz.services.Namespaces.roleKey;
 
 @Service
 public class RolesService {
 
     private static final Logger logger = LoggerFactory.getLogger(RolesService.class);
     private StatefulRedisConnection<String, String> conn;
-    private String roleNS = "iam:roles";
 
     public RolesService(RedisClient redisClient) {
         conn = redisClient.connect();
@@ -31,7 +32,7 @@ public class RolesService {
 
     public GetAllRolesResponse getRoles() {
         final RedisCommands<String, String> sync = conn.sync();
-        final Set<String> roleIds = sync.smembers(roleNS);
+        final Set<String> roleIds = sync.smembers(ROLE_NS);
         List<Role> roles = new ArrayList<>();
         for (String roleId : roleIds) {
             final String json = sync.get(roleId);
@@ -50,7 +51,7 @@ public class RolesService {
         final RedisCommands<String, String> sync = conn.sync();
         final Role role = body.getRole();
         String id = role.getId();
-        final String pk = roleNS + id;
+        final String pk = roleKey(id);
         if (sync.exists(pk) == 0) {
             ret.setMessage("Created");
         } else {
@@ -60,7 +61,7 @@ public class RolesService {
             final String json = objectMapper.writeValueAsString(role);
             sync.multi();
             sync.set(pk, json);
-            sync.sadd(roleNS, pk);
+            sync.sadd(ROLE_NS, pk);
             sync.exec();
         } catch (IOException e) {
             throw new ApiException(e).setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -71,7 +72,8 @@ public class RolesService {
 
     public GetRoleResponse getRole(String id) {
         final RedisCommands<String, String> sync = conn.sync();
-        final String json = sync.get(roleNS + id);
+        final String pk = roleKey(id);
+        final String json = sync.get(pk);
         if (json == null) {
             throw roleNotFound(id);
         }
@@ -86,7 +88,7 @@ public class RolesService {
     public DeleteRoleResponse deleteRole(String id) {
         DeleteRoleResponse ret = new DeleteRoleResponse();
         final RedisCommands<String, String> sync = conn.sync();
-        String pk = roleNS + id;
+        String pk = roleKey(id);
         if (sync.exists(pk) == 0) {
             throw roleNotFound(id);
         }
