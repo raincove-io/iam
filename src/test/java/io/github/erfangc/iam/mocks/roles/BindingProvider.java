@@ -11,7 +11,7 @@ public class BindingProvider {
 
     public static Binding forId(String id) {
         try {
-            return yamlMapper.readValue(BindingProvider.class.getClassLoader().getResourceAsStream("bindings" + id + ".yaml"), Binding.class);
+            return yamlMapper.readValue(BindingProvider.class.getClassLoader().getResourceAsStream("bindings/" + id + ".yaml"), Binding.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

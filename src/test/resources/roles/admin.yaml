@@ -1,6 +1,5 @@
----
 id: admin
 policies:
-  - resource: *
+  - resource: '*'
     actions:
-      - *
+      - '*'

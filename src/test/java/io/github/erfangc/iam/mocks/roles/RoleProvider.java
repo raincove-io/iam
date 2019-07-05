@@ -10,7 +10,7 @@ public class RoleProvider {
 
     public static Role forId(String id) {
         try {
-            return yamlMapper.readValue(RoleProvider.class.getClassLoader().getResourceAsStream("roles" + id + ".yaml"), Role.class);
+            return yamlMapper.readValue(RoleProvider.class.getClassLoader().getResourceAsStream("roles/" + id + ".yaml"), Role.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

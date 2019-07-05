@@ -1,31 +1,139 @@
 package io.github.erfangc.iam.authz.services;
 
+import io.github.erfangc.iam.ApiException;
 import io.github.erfangc.iam.authz.models.*;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisCommands;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+import static io.github.erfangc.iam.Utilities.objectMapper;
 
 @Service
 public class BindingsService {
-    private final RedisClient redisClient;
+    private StatefulRedisConnection<String, String> conn;
+
+    private String bindingNS = "iam:bindings:";
+    private String subRoleMappingNS = "iam:bindings:subs:";
+    private String roleBindingMappingNS = "iam:bindings:roles:";
+    private static final Logger logger = LoggerFactory.getLogger(BindingsService.class);
 
     public BindingsService(RedisClient redisClient) {
-
-        this.redisClient = redisClient;
+        conn = redisClient.connect();
     }
 
     public GetBindingsResponse getBindings(String roleId) {
-        return null;
+        final RedisCommands<String, String> sync = conn.sync();
+        final Set<String> roleIds = sync.smembers(roleBindingMappingNS + roleId);
+        List<Binding> bindings = new ArrayList<>();
+        for (String rid : roleIds) {
+            final String json = sync.get(bindingNS + rid);
+            try {
+                final Binding binding = objectMapper.readValue(json, Binding.class);
+                bindings.add(binding);
+            } catch (IOException e) {
+                logger.error("Cannot deserialize binding error={}", e.getMessage());
+            }
+        }
+        return new GetBindingsResponse().setBindings(bindings);
     }
 
+    /**
+     * A {@link Binding} consists of a principalId and a roleId (in addition to the principalType). Bindings are usually
+     * accessed in two patterns: all bindings for a role or all bindings across all roles for a principal
+     * <p>
+     * As such, we create a Set for each principal, containing the roleId(s) that the principal is bound. Each create/delete/modify operation on
+     * {@link Binding} mutates this set (i.e. SADD, SREM)
+     * <p>
+     * Furthermore, we create another Set containing all bindingIds for the given roleId to support the query case of get all bindings for a role.
+     */
     public CreateOrUpdateBindingResponse createOrUpdateBinding(CreateOrUpdateBindingRequest body, String roleId) {
-        return null;
+        CreateOrUpdateBindingResponse ret = new CreateOrUpdateBindingResponse();
+        final RedisCommands<String, String> sync = conn.sync();
+        final Binding binding = body.getBinding();
+        binding.setRoleId(roleId);
+        final String id = binding.getId();
+        final String pk = bindingNS + id;
+        if (sync.exists(pk) == 1) {
+            //
+            // binding does not exist, this is not a create operation
+            //
+            try {
+                final String json = sync.get(pk);
+                Binding existing = objectMapper.readValue(json, Binding.class);
+                //
+                // figure out what is different between the existing and the to be updated binding
+                //
+                sync.multi();
+                sync.set(pk, objectMapper.writeValueAsString(binding));
+                sync.srem(subRoleMappingNS + existing.getPrincipalType() + ":" + existing.getPrincipalId(), existing.getId());
+                sync.sadd(subRoleMappingNS + binding.getPrincipalType() + ":" + binding.getPrincipalId(), binding.getId());
+                sync.exec();
+            } catch (Exception e) {
+                throw new ApiException(e)
+                        .setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            ret.setMessage("Updated");
+        } else {
+            try {
+                //
+                // binding exists, this is an update operation
+                //
+                sync.multi();
+                sync.set(pk, objectMapper.writeValueAsString(binding));
+                sync.sadd(subRoleMappingNS + binding.getPrincipalType() + ":" + binding.getPrincipalId(), binding.getId());
+                sync.sadd(roleBindingMappingNS + roleId, id);
+                sync.exec();
+            } catch (Exception e) {
+                throw new ApiException(e)
+                        .setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            ret.setMessage("Created");
+        }
+        return ret;
     }
 
     public GetBindingResponse getBinding(String roleId, String id) {
-        return null;
+        final RedisCommands<String, String> sync = conn.sync();
+        final String pk = bindingNS + id;
+        final String json = sync.get(pk);
+        try {
+            return new GetBindingResponse().setBinding(objectMapper.readValue(json, Binding.class));
+        } catch (Exception e) {
+            throw new ApiException(e)
+                    .setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     public DeleteBindingResponse deleteBinding(String roleId, String id) {
-        return null;
+        final RedisCommands<String, String> sync = conn.sync();
+        String pk = bindingNS + id;
+        if (sync.exists(pk) == 0) {
+            return new DeleteBindingResponse().setMessage("Binding " + id + " does not exist").setTimestamp(Instant.now().toString());
+        }
+        try {
+            final String json = sync.get(pk);
+            final Binding binding = objectMapper.readValue(json, Binding.class);
+            sync.multi();
+            sync.srem(subRoleMappingNS + binding.getPrincipalType() + ":" + binding.getPrincipalId(), binding.getId());
+            sync.srem(roleBindingMappingNS + roleId, id);
+            sync.del(pk);
+            sync.exec();
+            return new DeleteBindingResponse()
+                    .setTimestamp(Instant.now().toString())
+                    .setMessage("Deleted");
+        } catch (Exception e) {
+            throw new ApiException(e)
+                    .setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

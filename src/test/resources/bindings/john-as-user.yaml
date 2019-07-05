@@ -1,4 +1,3 @@
----
 id: john-as-user
 principalId: john
 principalType: user

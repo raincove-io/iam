@@ -3,6 +3,7 @@ package io.github.erfangc.iam.authz.services;
 import io.github.erfangc.iam.authz.models.*;
 import io.github.erfangc.iam.mocks.roles.BindingProvider;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -18,23 +19,32 @@ import static org.junit.Assert.assertEquals;
 public class BindingsServiceTest {
 
     @Rule
-    private ExpectedException expectedException = ExpectedException.none();
+    public ExpectedException expectedException = ExpectedException.none();
     private RedisServer redisServer;
     private BindingsService bindingsService;
+    private RedisClient redisClient;
 
     @Before
     public void setUp() throws Exception {
         redisServer = new RedisServer(6379);
         redisServer.start();
-        RedisClient redisClient = RedisClient.create("localhost:6379");
+        redisClient = RedisClient.create("redis://localhost:6379");
         RolesService rolesService = new RolesService(redisClient);
         rolesService.createOrUpdateRole(new CreateOrUpdateRoleRequest().setRole(forId("users")));
         bindingsService = new BindingsService(redisClient);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
+        deleteAllKeys();
         redisServer.stop();
+    }
+
+    private void deleteAllKeys() {
+        final RedisCommands<String, String> sync = redisClient.connect().sync();
+        for (String key : sync.keys("*")) {
+            sync.del(key);
+        }
     }
 
     @Test

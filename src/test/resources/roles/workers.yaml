@@ -1,4 +1,3 @@
----
 id: workers
 policies:
   - resource: /inventories/*
