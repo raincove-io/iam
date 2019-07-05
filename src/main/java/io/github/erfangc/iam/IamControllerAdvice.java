@@ -21,6 +21,7 @@ public class IamControllerAdvice {
         logger.info("Encountered exception id={}, message={}", id, e.getMessage());
         e.printStackTrace();
         ApiError apiError = new ApiError()
+                .setId(id)
                 .setMessage(e.getMessage())
                 .setTimestamp(e.getTimestamp().toString());
         return new ResponseEntity<>(apiError, e.getHttpStatus());

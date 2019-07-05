@@ -19,6 +19,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import static io.github.erfangc.iam.Utilities.*;
 import static java.util.Collections.singleton;
@@ -62,6 +63,19 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
         );
     }
 
+    /**
+     * Generates a new random string using {@link SecureRandom}.
+     * The output can be used as State or Nonce values for API requests.
+     *
+     * @return a new random string.
+     */
+    private static String secureRandomString() {
+        final SecureRandom sr = new SecureRandom();
+        final byte[] randomBytes = new byte[32];
+        sr.nextBytes(randomBytes);
+        return Base64.encodeBase64URLSafeString(randomBytes);
+    }
+
     private boolean allowUnauthenticated(HttpServletRequest httpServletRequest) {
         final String resource = httpServletRequest.getRequestURI();
         final String verb = httpServletRequest.getMethod();
@@ -74,7 +88,9 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest httpServletRequest,
+                                    HttpServletResponse httpServletResponse,
+                                    FilterChain filterChain) throws ServletException, IOException {
         //
         // let the callback pass through without authentication
         //
@@ -85,25 +101,39 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
             final boolean isApiCall = authorization != null && authorization.startsWith("Bearer ");
             DecodedJWT decodedJwt;
             String sub;
+            final String requestURI = httpServletRequest.getRequestURI();
+            final String method = httpServletRequest.getMethod();
             if (isApiCall) {
                 // handle JWT based authentication
                 try {
                     decodedJwt = validateAccessToken(extractAccessToken(authorization));
-                    logger.info("Authenticated API request for principal=" + decodedJwt.getSubject());
+                    logger.info(
+                            "Authenticated API request for principal="
+                                    + decodedJwt.getSubject()
+                                    + " requestUri=" + requestURI
+                                    + " method=" + method
+                    );
                     sub = decodedJwt.getSubject();
                 } catch (UnauthenticatedException exception) {
                     // 401
+                    String id = UUID.randomUUID().toString();
                     httpServletResponse.setHeader("Content-Type", "application/json");
                     httpServletResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    httpServletResponse.getOutputStream().write(("{\"message\":\"Bearer token is not valid or is expired\", \"timestamp\": \"" + Instant.now().toString() + "\"}").getBytes());
-                    logger.info("Anonymous access prohibited for API calls");
+                    httpServletResponse.getOutputStream().write(("{\"id\": \"" + id + "\", \"message\":\"Bearer token is not valid or is expired\", \"timestamp\": \"" + Instant.now().toString() + "\"}").getBytes());
+                    logger.info("Failed to authenticate API call to requestUri=" + requestURI + " method=" + method + " id=" + id + " message=" + exception.getMessage());
+                    exception.printStackTrace();
                     return;
                 }
             } else {
                 // handle session based authentication
                 decodedJwt = validateSession(httpServletRequest, httpServletResponse);
                 if (decodedJwt != null) {
-                    logger.info("Authenticated request for principal=" + decodedJwt.getSubject());
+                    logger.info(
+                            "Authenticated request for principal="
+                                    + decodedJwt.getSubject()
+                                    + " requestUri=" + requestURI
+                                    + " method=" + method
+                    );
                     sub = decodedJwt.getSubject();
                 } else {
                     logger.info("Unable to authenticate web request");
@@ -116,7 +146,7 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractAccessToken(String authorization) {
-        return authorization.replaceFirst("^Bearer ", authorization);
+        return authorization.replaceFirst("^Bearer ", "");
     }
 
     private DecodedJWT validateSession(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws UnauthenticatedException {
@@ -168,19 +198,6 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Generates a new random string using {@link SecureRandom}.
-     * The output can be used as State or Nonce values for API requests.
-     *
-     * @return a new random string.
-     */
-    private static String secureRandomString() {
-        final SecureRandom sr = new SecureRandom();
-        final byte[] randomBytes = new byte[32];
-        sr.nextBytes(randomBytes);
-        return Base64.encodeBase64URLSafeString(randomBytes);
-    }
-
-    /**
      * Validates the access token provided using the trusted issuer
      *
      * @param accessToken the token to validate
@@ -190,7 +207,7 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
         try {
             return jwtValidator.decodeAndVerify(accessToken);
         } catch (Exception e) {
-            throw new UnauthenticatedException(e);
+            throw new UnauthenticatedException(e.getMessage(), e);
         }
     }
 

@@ -20,12 +20,11 @@ import static io.github.erfangc.iam.Utilities.objectMapper;
 
 @Service
 public class BindingsService {
+    private static final Logger logger = LoggerFactory.getLogger(BindingsService.class);
     private StatefulRedisConnection<String, String> conn;
-
     private String bindingNS = "iam:bindings:";
     private String subRoleMappingNS = "iam:bindings:subs:";
     private String roleBindingMappingNS = "iam:bindings:roles:";
-    private static final Logger logger = LoggerFactory.getLogger(BindingsService.class);
 
     public BindingsService(RedisClient redisClient) {
         conn = redisClient.connect();
@@ -106,6 +105,9 @@ public class BindingsService {
         final RedisCommands<String, String> sync = conn.sync();
         final String pk = bindingNS + id;
         final String json = sync.get(pk);
+        if (json == null) {
+            throw bindingNotFound(id);
+        }
         try {
             return new GetBindingResponse().setBinding(objectMapper.readValue(json, Binding.class));
         } catch (Exception e) {
@@ -118,7 +120,7 @@ public class BindingsService {
         final RedisCommands<String, String> sync = conn.sync();
         String pk = bindingNS + id;
         if (sync.exists(pk) == 0) {
-            return new DeleteBindingResponse().setMessage("Binding " + id + " does not exist").setTimestamp(Instant.now().toString());
+            throw bindingNotFound(id);
         }
         try {
             final String json = sync.get(pk);
@@ -135,5 +137,11 @@ public class BindingsService {
             throw new ApiException(e)
                     .setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private ApiException bindingNotFound(String id) {
+        return new ApiException()
+                .setHttpStatus(HttpStatus.NOT_FOUND)
+                .setMessage("Binding " + id + " not found");
     }
 }

@@ -21,9 +21,9 @@ import static io.github.erfangc.iam.Utilities.objectMapper;
 @Service
 public class RolesService {
 
+    private static final Logger logger = LoggerFactory.getLogger(RolesService.class);
     private StatefulRedisConnection<String, String> conn;
     private String roleNS = "iam:roles";
-    private static final Logger logger = LoggerFactory.getLogger(RolesService.class);
 
     public RolesService(RedisClient redisClient) {
         conn = redisClient.connect();
@@ -72,6 +72,9 @@ public class RolesService {
     public GetRoleResponse getRole(String id) {
         final RedisCommands<String, String> sync = conn.sync();
         final String json = sync.get(roleNS + id);
+        if (json == null) {
+            throw roleNotFound(id);
+        }
         try {
             final Role role = objectMapper.readValue(json, Role.class);
             return new GetRoleResponse().setRole(role);
@@ -84,8 +87,17 @@ public class RolesService {
         DeleteRoleResponse ret = new DeleteRoleResponse();
         final RedisCommands<String, String> sync = conn.sync();
         String pk = roleNS + id;
+        if (sync.exists(pk) == 0) {
+            throw roleNotFound(id);
+        }
         sync.del(pk);
         ret.setMessage("Deleted");
         return ret;
+    }
+
+    private ApiException roleNotFound(String id) {
+        return new ApiException()
+                .setHttpStatus(HttpStatus.NOT_FOUND)
+                .setMessage("Role " + id + " not found");
     }
 }
