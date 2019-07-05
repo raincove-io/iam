@@ -2,8 +2,11 @@ package io.github.erfangc.iam.authz.controllers;
 
 import io.github.erfangc.iam.authz.models.AuthorizeResponse;
 import io.github.erfangc.iam.authz.services.AuthorizeService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -30,11 +33,18 @@ public class AuthorizeController {
                     APPLICATION_FORM_URLENCODED_VALUE
             }
     )
-    public AuthorizeResponse authorizeRequest(HttpServletRequest httpServletRequest) {
+
+    @ResponseBody
+    public ResponseEntity<AuthorizeResponse> authorizeRequest(HttpServletRequest httpServletRequest) {
         String resource = httpServletRequest.getHeader("X-Auth-Request-Redirect");
         String verb = httpServletRequest.getHeader("X-Original-Method");
         String sub = httpServletRequest.getAttribute(SUB).toString();
-        return authorizeService.authorizeRequest(resource, verb, sub);
+        final AuthorizeResponse response = authorizeService.authorizeRequest(resource, verb, sub);
+        if (response.getAllowed()) {
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+        }
     }
 
 }
