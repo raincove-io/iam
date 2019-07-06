@@ -3,9 +3,11 @@ package io.github.erfangc.iam.authz.controllers;
 import io.github.erfangc.iam.authz.models.AuthorizeResponse;
 import io.github.erfangc.iam.authz.services.AccessRequest;
 import io.github.erfangc.iam.authz.services.AuthorizeService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -43,7 +45,11 @@ public class AuthorizeController {
         AccessRequest accessRequest = new AccessRequest().setAction(action).setResource(resource).setSub(sub);
         final AuthorizeResponse response = authorizeService.authorizeRequest(accessRequest);
         if (response.getAllowed()) {
-            return new ResponseEntity<>(response, HttpStatus.OK);
+            //
+            // TODO include user headers to forward to upstream
+            //
+            MultiValueMap<String, String> headers = new HttpHeaders();
+            return new ResponseEntity<>(response, headers, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
         }
