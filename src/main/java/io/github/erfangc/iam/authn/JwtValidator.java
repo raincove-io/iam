@@ -25,9 +25,9 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class JwtValidator {
 
+    private final JwkProvider jwkProvider;
     private String issuer = System.getenv("ISSUER");
     private String audience = System.getenv("AUDIENCE");
-    private final JwkProvider jwkProvider;
 
     public JwtValidator() {
         jwkProvider = new JwkProviderBuilder(issuer)
@@ -35,7 +35,7 @@ public class JwtValidator {
                 .build();
     }
 
-    public DecodedJWT decodeAndVerify(String token) {
+    public DecodedJWT decodeAndVerify(String token) throws UnauthenticatedException {
         final DecodedJWT decodedJWT = JWT.decode(token);
         //
         // find the kid from jwkProvider, use that to construct the public key needed

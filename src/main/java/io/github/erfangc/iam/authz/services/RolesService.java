@@ -51,6 +51,11 @@ public class RolesService {
         final RedisCommands<String, String> sync = conn.sync();
         final Role role = body.getRole();
         String id = role.getId();
+        if (id == null) {
+            throw new ApiException()
+                    .setHttpStatus(HttpStatus.BAD_REQUEST)
+                    .setMessage("id is required");
+        }
         final String pk = roleKey(id);
         if (sync.exists(pk) == 0) {
             ret.setMessage("Created");

@@ -34,9 +34,9 @@ public class AuthorizeService {
 
     public AuthorizeService(RedisClient redisClient) {
         conn = redisClient.connect();
-        final String getenv = System.getenv("ROOT_USERS");
-        rootUsers = asList((getenv == null ? "" : getenv).split(","));
-        logger.info("{} has started with root users={}", AuthorizeService.class.getSimpleName(), rootUsers);
+        final String rootUsers = System.getenv("ROOT_USERS");
+        this.rootUsers = asList((rootUsers == null ? "" : rootUsers).split(","));
+        logger.info("{} has started with root users={}", AuthorizeService.class.getSimpleName(), this.rootUsers);
     }
 
     private static String toRegex(String input) {
@@ -54,7 +54,6 @@ public class AuthorizeService {
 
     public AuthorizeResponse authorizeRequest(AccessRequest accessRequest) {
         try {
-
             //
             // short circuit everything if a root user login. This is necessary to bootstrap the RBAC system
             //
@@ -62,7 +61,6 @@ public class AuthorizeService {
                 logger.info("Authorized root user access to sub={} resource={} action={}", accessRequest.getSub(), accessRequest.getResource(), accessRequest.getAction());
                 return allowed();
             }
-
             final String sub = accessRequest.getSub();
             final RedisCommands<String, String> sync = conn.sync();
             //
@@ -89,7 +87,6 @@ public class AuthorizeService {
                     } else {
                         logger.warn("Role cannot be found bindingId={} roleId={}", bindingId, roleId);
                     }
-
                 }
                 logger.info("Access is denied to sub={} resource={} action={}", accessRequest.getSub(), accessRequest.getResource(), accessRequest.getAction());
                 return denied();

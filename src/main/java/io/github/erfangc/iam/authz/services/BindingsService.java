@@ -59,6 +59,11 @@ public class BindingsService {
         final Binding binding = body.getBinding();
         binding.setRoleId(roleId);
         final String id = binding.getId();
+        if (id == null) {
+            throw new ApiException()
+                    .setHttpStatus(HttpStatus.BAD_REQUEST)
+                    .setMessage("id is required");
+        }
         final String pk = bindingKey(id);
         if (sync.exists(pk) == 1) {
             //

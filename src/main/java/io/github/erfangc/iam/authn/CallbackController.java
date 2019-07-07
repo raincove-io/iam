@@ -62,6 +62,7 @@ public class CallbackController {
         final HttpSession session = httpServletRequest.getSession();
         String sessionState = (String) session.getAttribute(STATE);
         if (sessionState == null || !sessionState.equals(state)) {
+            session.invalidate();
             throw new IllegalStateException("Session is in an invalid state");
         }
         //
