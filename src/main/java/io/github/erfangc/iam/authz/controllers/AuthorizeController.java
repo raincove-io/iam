@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import javax.servlet.http.HttpServletRequest;
 
 import static io.github.erfangc.iam.Utilities.SUB;
-import static org.springframework.http.MediaType.*;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 
 @Controller
@@ -28,15 +27,8 @@ public class AuthorizeController {
 
     @RequestMapping(
             method = GET,
-            path = "/_authorize",
-            consumes = {
-                    APPLICATION_JSON_VALUE,
-                    TEXT_HTML_VALUE,
-                    TEXT_PLAIN_VALUE,
-                    APPLICATION_FORM_URLENCODED_VALUE
-            }
+            path = "/_authorize"
     )
-
     @ResponseBody
     public ResponseEntity<AuthorizeResponse> authorizeRequest(HttpServletRequest httpServletRequest) {
         String resource = httpServletRequest.getHeader("X-Auth-Request-Redirect");
