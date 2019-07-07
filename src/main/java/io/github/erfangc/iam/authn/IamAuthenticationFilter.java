@@ -75,11 +75,6 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
                         .setResource("/iam/api/v1/logout")
                         .setVerbs(singleton("GET"))
         );
-        noAuthOperations.add(
-                new Operation()
-                        .setResource("/iam/api/v1/_authorize")
-                        .setVerbs(singleton("GET"))
-        );
     }
 
     private boolean allowUnauthenticated(HttpServletRequest httpServletRequest) {
@@ -131,18 +126,27 @@ public class IamAuthenticationFilter extends OncePerRequestFilter {
                                 + " method=" + method
                 );
                 //
-                // now authorize the request
+                // if the request is to authenticate another request, allow it go through, that is the main point of IAM
+                // once authenticated everyone is allowed to call the _authorize operation against some resource and action
+                // combination
                 //
-                final AuthorizeResponse authorizeResponse = authorizeService.authorizeRequest(
-                        new AccessRequest()
-                                .setSub(sub)
-                                .setResource(requestURI)
-                                .setAction(method)
-                );
-                if (authorizeResponse.getAllowed()) {
+                if (requestURI.startsWith("/iam/api/v1/_authorize")) {
                     filterChain.doFilter(httpServletRequest, httpServletResponse);
                 } else {
-                    handleAuthorizationFailed(httpServletResponse, isApiCall);
+                    //
+                    // now authorize the request
+                    //
+                    final AuthorizeResponse authorizeResponse = authorizeService.authorizeRequest(
+                            new AccessRequest()
+                                    .setSub(sub)
+                                    .setResource(requestURI)
+                                    .setAction(method)
+                    );
+                    if (authorizeResponse.getAllowed()) {
+                        filterChain.doFilter(httpServletRequest, httpServletResponse);
+                    } else {
+                        handleAuthorizationFailed(httpServletResponse, isApiCall);
+                    }
                 }
             } catch (UnauthenticatedException e) {
                 //
