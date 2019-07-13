@@ -42,7 +42,7 @@ public class IamController {
         return rolesService.deleteRole(id);
     }
 
-    @RequestMapping(method = GET, path = "/roles/{roleId}/bindings")
+    @RequestMapping(method = GET, path = "/roles/{roleId}/role-bindings")
     public GetRoleBindingsResponse getRoleBindings(@PathVariable String roleId) {
         return roleBindingsService.getRoleBindings(roleId);
     }
