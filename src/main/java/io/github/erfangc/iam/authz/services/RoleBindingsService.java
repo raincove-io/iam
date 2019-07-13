@@ -57,12 +57,17 @@ public class RoleBindingsService {
         CreateOrUpdateRoleBindingResponse ret = new CreateOrUpdateRoleBindingResponse();
         final RedisCommands<String, String> sync = conn.sync();
         final RoleBinding roleBinding = body.getRoleBinding();
+        final String id = roleBinding.getId();
         final String roleId = roleBinding.getRoleId();
+        if (id == null || id.isEmpty()) {
+            throw new ApiException()
+                    .setHttpStatus(HttpStatus.BAD_REQUEST)
+                    .setMessage("id is required");
+        }
         if (roleId == null || roleId.isEmpty()) {
-            throw new ApiException().setHttpStatus(HttpStatus.BAD_REQUEST).setMessage("roleId must not be empty");
+            throw new ApiException().setHttpStatus(HttpStatus.BAD_REQUEST).setMessage("roleId is required");
         }
         roleBinding.setRoleId(roleId);
-        final String id = roleBinding.getId();
         final String pk = roleBindingKey(id);
         if (sync.exists(pk) == 1) {
             //
