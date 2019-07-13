@@ -1,3 +1,4 @@
 id: john-as-user
+roleId: users
 principalId: john
 principalType: user

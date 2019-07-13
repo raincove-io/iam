@@ -1,3 +1,4 @@
-id: joe-as-contractor
+id: joe-as-user
+roleId: users
 principalId: joe
 principalType: user

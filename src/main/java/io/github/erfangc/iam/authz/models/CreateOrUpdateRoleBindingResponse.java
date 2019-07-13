@@ -1,7 +1,7 @@
 package io.github.erfangc.iam.authz.models;
 
 
-public class CreateOrUpdateBindingResponse {
+public class CreateOrUpdateRoleBindingResponse {
 
     private String message;
     private String timestamp;
@@ -10,7 +10,7 @@ public class CreateOrUpdateBindingResponse {
         return this.message;
     }
 
-    public CreateOrUpdateBindingResponse setMessage(String message) {
+    public CreateOrUpdateRoleBindingResponse setMessage(String message) {
         this.message = message;
         return this;
     }
@@ -19,7 +19,7 @@ public class CreateOrUpdateBindingResponse {
         return this.timestamp;
     }
 
-    public CreateOrUpdateBindingResponse setTimestamp(String timestamp) {
+    public CreateOrUpdateRoleBindingResponse setTimestamp(String timestamp) {
         this.timestamp = timestamp;
         return this;
     }

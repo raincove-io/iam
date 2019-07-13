@@ -1,7 +1,7 @@
 package io.github.erfangc.iam.authz.controllers;
 
 import io.github.erfangc.iam.authz.models.*;
-import io.github.erfangc.iam.authz.services.BindingsService;
+import io.github.erfangc.iam.authz.services.RoleBindingsService;
 import io.github.erfangc.iam.authz.services.RolesService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,11 +15,11 @@ import static org.springframework.web.bind.annotation.RequestMethod.*;
 public class IamController {
 
     private RolesService rolesService;
-    private BindingsService bindingsService;
+    private RoleBindingsService roleBindingsService;
 
-    public IamController(RolesService rolesService, BindingsService bindingsService) {
+    public IamController(RolesService rolesService, RoleBindingsService roleBindingsService) {
         this.rolesService = rolesService;
-        this.bindingsService = bindingsService;
+        this.roleBindingsService = roleBindingsService;
     }
 
     @RequestMapping(method = GET, path = "/roles")
@@ -43,23 +43,23 @@ public class IamController {
     }
 
     @RequestMapping(method = GET, path = "/roles/{roleId}/bindings")
-    public GetBindingsResponse getBindings(@PathVariable String roleId) {
-        return bindingsService.getBindings(roleId);
+    public GetRoleBindingsResponse getRoleBindings(@PathVariable String roleId) {
+        return roleBindingsService.getRoleBindings(roleId);
     }
 
-    @RequestMapping(method = POST, path = "/roles/{roleId}/bindings")
-    public CreateOrUpdateBindingResponse createOrUpdateBinding(@RequestBody CreateOrUpdateBindingRequest body, @PathVariable String roleId) {
-        return bindingsService.createOrUpdateBinding(body, roleId);
+    @RequestMapping(method = POST, path = "/role-bindings")
+    public CreateOrUpdateRoleBindingResponse createOrUpdateBinding(@RequestBody CreateOrUpdateRoleBindingRequest body) {
+        return roleBindingsService.createOrUpdateRoleBinding(body);
     }
 
-    @RequestMapping(method = GET, path = "/roles/{roleId}/bindings/{id}")
-    public GetBindingResponse getBinding(@PathVariable String roleId, @PathVariable String id) {
-        return bindingsService.getBinding(roleId, id);
+    @RequestMapping(method = GET, path = "/role-bindings/{id}")
+    public GetRoleBindingResponse getRoleBinding(@PathVariable String id) {
+        return roleBindingsService.getRoleBinding(id);
     }
 
-    @RequestMapping(method = DELETE, path = "/roles/{roleId}/bindings/{id}")
-    public DeleteBindingResponse deleteBinding(@PathVariable String roleId, @PathVariable String id) {
-        return bindingsService.deleteBinding(roleId, id);
+    @RequestMapping(method = DELETE, path = "/role-bindings/{id}")
+    public DeleteRoleBindingResponse deleteRoleBinding(@PathVariable String id) {
+        return roleBindingsService.deleteRoleBinding(id);
     }
 
 }

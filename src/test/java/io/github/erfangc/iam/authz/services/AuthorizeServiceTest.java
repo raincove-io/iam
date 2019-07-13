@@ -1,9 +1,9 @@
 package io.github.erfangc.iam.authz.services;
 
-import io.github.erfangc.iam.authz.models.Binding;
-import io.github.erfangc.iam.authz.models.CreateOrUpdateBindingRequest;
+import io.github.erfangc.iam.authz.models.RoleBinding;
+import io.github.erfangc.iam.authz.models.CreateOrUpdateRoleBindingRequest;
 import io.github.erfangc.iam.authz.models.CreateOrUpdateRoleRequest;
-import io.github.erfangc.iam.mocks.roles.BindingProvider;
+import io.github.erfangc.iam.mocks.roles.RoleBindingProvider;
 import io.github.erfangc.iam.mocks.roles.RoleProvider;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.sync.RedisCommands;
@@ -19,7 +19,7 @@ public class AuthorizeServiceTest {
 
     private RedisServer redisServer;
     private RolesService rolesService;
-    private BindingsService bindingsService;
+    private RoleBindingsService roleBindingsService;
     private RedisClient redisClient;
     private AuthorizeService authorizeService;
 
@@ -29,18 +29,18 @@ public class AuthorizeServiceTest {
         redisServer.start();
         redisClient = RedisClient.create("redis://localhost:6379");
         rolesService = new RolesService(redisClient);
-        bindingsService = new BindingsService(redisClient);
+        roleBindingsService = new RoleBindingsService(redisClient);
         authorizeService = new AuthorizeService(redisClient);
         //
-        // setup roles and bindings for tests
+        // setup roles and role-bindings for tests
         //
         rolesService.createOrUpdateRole(new CreateOrUpdateRoleRequest().setRole(RoleProvider.forId("admins")));
         rolesService.createOrUpdateRole(new CreateOrUpdateRoleRequest().setRole(RoleProvider.forId("users")));
         rolesService.createOrUpdateRole(new CreateOrUpdateRoleRequest().setRole(RoleProvider.forId("contractors")));
-        bindingsService.createOrUpdateBinding(new CreateOrUpdateBindingRequest().setBinding(BindingProvider.forId("joe-as-user")), "users");
-        bindingsService.createOrUpdateBinding(new CreateOrUpdateBindingRequest().setBinding(BindingProvider.forId("joe-as-contractor")), "contractors");
-        bindingsService.createOrUpdateBinding(new CreateOrUpdateBindingRequest().setBinding(BindingProvider.forId("john-as-user")), "users");
-        bindingsService.createOrUpdateBinding(new CreateOrUpdateBindingRequest().setBinding(BindingProvider.forId("jack-as-admin")), "admins");
+        roleBindingsService.createOrUpdateRoleBinding(new CreateOrUpdateRoleBindingRequest().setRoleBinding(RoleBindingProvider.forId("joe-as-user")));
+        roleBindingsService.createOrUpdateRoleBinding(new CreateOrUpdateRoleBindingRequest().setRoleBinding(RoleBindingProvider.forId("joe-as-contractor")));
+        roleBindingsService.createOrUpdateRoleBinding(new CreateOrUpdateRoleBindingRequest().setRoleBinding(RoleBindingProvider.forId("john-as-user")));
+        roleBindingsService.createOrUpdateRoleBinding(new CreateOrUpdateRoleBindingRequest().setRoleBinding(RoleBindingProvider.forId("jack-as-admin")));
     }
 
 
@@ -91,7 +91,7 @@ public class AuthorizeServiceTest {
                 .setAction("PUT")
                 .setSub("joe");
         assertTrue(authorizeService.authorizeRequest(accessRequest).getAllowed());
-        bindingsService.deleteBinding("contractors", "joe-as-contractor");
+        roleBindingsService.deleteRoleBinding("joe-as-contractor");
         AccessRequest accessRequest2 = new AccessRequest()
                 .setResource("/inventories/third-party-product1")
                 .setAction("PUT")
@@ -141,14 +141,15 @@ public class AuthorizeServiceTest {
                 .setAction("GET")
                 .setSub("joe");
         assertFalse(authorizeService.authorizeRequest(accessRequest1).getAllowed());
-        final CreateOrUpdateBindingRequest body = new CreateOrUpdateBindingRequest()
-                .setBinding(
-                        new Binding()
+        final CreateOrUpdateRoleBindingRequest body = new CreateOrUpdateRoleBindingRequest()
+                .setRoleBinding(
+                        new RoleBinding()
                                 .setPrincipalType("user")
                                 .setId("joe-as-admin")
+                                .setRoleId("admins")
                                 .setPrincipalId("joe")
                 );
-        bindingsService.createOrUpdateBinding(body, "admins");
+        roleBindingsService.createOrUpdateRoleBinding(body);
         AccessRequest accessRequest2 = new AccessRequest()
                 .setResource("/esoteric-resource/foobar")
                 .setAction("GET")

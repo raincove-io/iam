@@ -1,7 +1,7 @@
 package io.github.erfangc.iam.authz.models;
 
 
-public class Binding {
+public class RoleBinding {
 
     private String id;
     private String principalId;
@@ -12,7 +12,7 @@ public class Binding {
         return this.id;
     }
 
-    public Binding setId(String id) {
+    public RoleBinding setId(String id) {
         this.id = id;
         return this;
     }
@@ -21,7 +21,7 @@ public class Binding {
         return this.principalId;
     }
 
-    public Binding setPrincipalId(String principalId) {
+    public RoleBinding setPrincipalId(String principalId) {
         this.principalId = principalId;
         return this;
     }
@@ -30,7 +30,7 @@ public class Binding {
         return this.roleId;
     }
 
-    public Binding setRoleId(String roleId) {
+    public RoleBinding setRoleId(String roleId) {
         this.roleId = roleId;
         return this;
     }
@@ -39,7 +39,7 @@ public class Binding {
         return this.principalType;
     }
 
-    public Binding setPrincipalType(String principalType) {
+    public RoleBinding setPrincipalType(String principalType) {
         this.principalType = principalType;
         return this;
     }

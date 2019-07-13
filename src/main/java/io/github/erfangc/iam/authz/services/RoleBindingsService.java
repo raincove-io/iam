@@ -20,65 +20,64 @@ import static io.github.erfangc.iam.Utilities.objectMapper;
 import static io.github.erfangc.iam.authz.services.Namespaces.*;
 
 @Service
-public class BindingsService {
-    private static final Logger logger = LoggerFactory.getLogger(BindingsService.class);
+public class RoleBindingsService {
+    private static final Logger logger = LoggerFactory.getLogger(RoleBindingsService.class);
     private StatefulRedisConnection<String, String> conn;
 
-    public BindingsService(RedisClient redisClient) {
+    public RoleBindingsService(RedisClient redisClient) {
         conn = redisClient.connect();
     }
 
-    public GetBindingsResponse getBindings(String roleId) {
+    public GetRoleBindingsResponse getRoleBindings(String roleId) {
         final RedisCommands<String, String> sync = conn.sync();
         final Set<String> bindingIds = sync.smembers(roleBindingsKey(roleId));
-        List<Binding> bindings = new ArrayList<>();
+        List<RoleBinding> roleBindings = new ArrayList<>();
         for (String bindingId : bindingIds) {
-            final String json = sync.get(bindingKey(bindingId));
+            final String json = sync.get(roleBindingKey(bindingId));
             try {
-                final Binding binding = objectMapper.readValue(json, Binding.class);
-                bindings.add(binding);
+                final RoleBinding roleBinding = objectMapper.readValue(json, RoleBinding.class);
+                roleBindings.add(roleBinding);
             } catch (IOException e) {
                 logger.error("Cannot deserialize binding error={}", e.getMessage());
             }
         }
-        return new GetBindingsResponse().setBindings(bindings);
+        return new GetRoleBindingsResponse().setRoleBindings(roleBindings);
     }
 
     /**
-     * A {@link Binding} consists of a principalId and a roleId (in addition to the principalType). Bindings are usually
-     * accessed in two patterns: all bindings for a role or all bindings across all roles for a principal
+     * A {@link RoleBinding} consists of a principalId and a roleId (in addition to the principalType). Bindings are usually
+     * accessed in two patterns: all role-bindings for a role or all role-bindings across all roles for a principal
      * <p>
      * As such, we create a Set for each principal, containing the roleId(s) that the principal is bound. Each create/delete/modify operation on
-     * {@link Binding} mutates this set (i.e. SADD, SREM)
+     * {@link RoleBinding} mutates this set (i.e. SADD, SREM)
      * <p>
-     * Furthermore, we create another Set containing all bindingIds for the given roleId to support the query case of get all bindings for a role.
+     * Furthermore, we create another Set containing all bindingIds for the given roleId to support the query case of get all role-bindings for a role.
      */
-    public CreateOrUpdateBindingResponse createOrUpdateBinding(CreateOrUpdateBindingRequest body, String roleId) {
-        CreateOrUpdateBindingResponse ret = new CreateOrUpdateBindingResponse();
+    public CreateOrUpdateRoleBindingResponse createOrUpdateRoleBinding(CreateOrUpdateRoleBindingRequest body) {
+        CreateOrUpdateRoleBindingResponse ret = new CreateOrUpdateRoleBindingResponse();
         final RedisCommands<String, String> sync = conn.sync();
-        final Binding binding = body.getBinding();
-        binding.setRoleId(roleId);
-        final String id = binding.getId();
-        if (id == null) {
-            throw new ApiException()
-                    .setHttpStatus(HttpStatus.BAD_REQUEST)
-                    .setMessage("id is required");
+        final RoleBinding roleBinding = body.getRoleBinding();
+        final String roleId = roleBinding.getRoleId();
+        if (roleId == null || roleId.isEmpty()) {
+            throw new ApiException().setHttpStatus(HttpStatus.BAD_REQUEST).setMessage("roleId must not be empty");
         }
-        final String pk = bindingKey(id);
+        roleBinding.setRoleId(roleId);
+        final String id = roleBinding.getId();
+        final String pk = roleBindingKey(id);
         if (sync.exists(pk) == 1) {
             //
-            // binding does not exist, this is not a create operation
+            // roleBinding does not exist, this is not a create operation
             //
             try {
                 final String json = sync.get(pk);
-                Binding existing = objectMapper.readValue(json, Binding.class);
+                RoleBinding existing = objectMapper.readValue(json, RoleBinding.class);
                 //
-                // figure out what is different between the existing and the to be updated binding
+                // figure out what is different between the existing and the to be updated roleBinding
                 //
                 sync.multi();
-                sync.set(pk, objectMapper.writeValueAsString(binding));
+                sync.set(pk, objectMapper.writeValueAsString(roleBinding));
                 sync.srem(subBindingsKey(existing.getPrincipalType(), existing.getPrincipalId()), existing.getId());
-                sync.sadd(subBindingsKey(binding.getPrincipalType(), binding.getPrincipalId()), binding.getId());
+                sync.sadd(subBindingsKey(roleBinding.getPrincipalType(), roleBinding.getPrincipalId()), roleBinding.getId());
                 sync.exec();
             } catch (Exception e) {
                 throw new ApiException(e)
@@ -88,11 +87,11 @@ public class BindingsService {
         } else {
             try {
                 //
-                // binding exists, this is an update operation
+                // roleBinding exists, this is an update operation
                 //
                 sync.multi();
-                sync.set(pk, objectMapper.writeValueAsString(binding));
-                sync.sadd(subBindingsKey(binding.getPrincipalType(), binding.getPrincipalId()), binding.getId());
+                sync.set(pk, objectMapper.writeValueAsString(roleBinding));
+                sync.sadd(subBindingsKey(roleBinding.getPrincipalType(), roleBinding.getPrincipalId()), roleBinding.getId());
                 sync.sadd(roleBindingsKey(roleId), id);
                 sync.exec();
             } catch (Exception e) {
@@ -104,36 +103,37 @@ public class BindingsService {
         return ret;
     }
 
-    public GetBindingResponse getBinding(String roleId, String id) {
+    public GetRoleBindingResponse getRoleBinding(String id) {
         final RedisCommands<String, String> sync = conn.sync();
-        final String pk = bindingKey(id);
+        final String pk = roleBindingKey(id);
         final String json = sync.get(pk);
         if (json == null) {
             throw bindingNotFound(id);
         }
         try {
-            return new GetBindingResponse().setBinding(objectMapper.readValue(json, Binding.class));
+            return new GetRoleBindingResponse().setRoleBinding(objectMapper.readValue(json, RoleBinding.class));
         } catch (Exception e) {
             throw new ApiException(e)
                     .setHttpStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    public DeleteBindingResponse deleteBinding(String roleId, String id) {
+    public DeleteRoleBindingResponse deleteRoleBinding(String id) {
         final RedisCommands<String, String> sync = conn.sync();
-        String pk = bindingKey(id);
+        String pk = roleBindingKey(id);
         if (sync.exists(pk) == 0) {
             throw bindingNotFound(id);
         }
         try {
             final String json = sync.get(pk);
-            final Binding binding = objectMapper.readValue(json, Binding.class);
+            final RoleBinding roleBinding = objectMapper.readValue(json, RoleBinding.class);
+            final String roleId = roleBinding.getRoleId();
             sync.multi();
-            sync.srem(subBindingsKey(binding.getPrincipalType(), binding.getPrincipalId()), binding.getId());
+            sync.srem(subBindingsKey(roleBinding.getPrincipalType(), roleBinding.getPrincipalId()), roleBinding.getId());
             sync.srem(roleBindingsKey(roleId), id);
             sync.del(pk);
             sync.exec();
-            return new DeleteBindingResponse()
+            return new DeleteRoleBindingResponse()
                     .setTimestamp(Instant.now().toString())
                     .setMessage("Deleted");
         } catch (Exception e) {
@@ -145,6 +145,6 @@ public class BindingsService {
     private ApiException bindingNotFound(String id) {
         return new ApiException()
                 .setHttpStatus(HttpStatus.NOT_FOUND)
-                .setMessage("Binding " + id + " not found");
+                .setMessage("RoleBinding " + id + " not found");
     }
 }

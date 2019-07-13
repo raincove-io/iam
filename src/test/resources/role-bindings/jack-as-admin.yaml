@@ -1,3 +1,4 @@
 id: jack-as-admin
+roleId: admins
 principalId: jack
 principalType: user

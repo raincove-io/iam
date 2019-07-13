@@ -2,7 +2,7 @@ package io.github.erfangc.iam.authz.services;
 
 import io.github.erfangc.iam.ApiException;
 import io.github.erfangc.iam.authz.models.AuthorizeResponse;
-import io.github.erfangc.iam.authz.models.Binding;
+import io.github.erfangc.iam.authz.models.RoleBinding;
 import io.github.erfangc.iam.authz.models.Policy;
 import io.github.erfangc.iam.authz.models.Role;
 import io.lettuce.core.RedisClient;
@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.github.erfangc.iam.Utilities.objectMapper;
-import static io.github.erfangc.iam.authz.services.Namespaces.bindingKey;
+import static io.github.erfangc.iam.authz.services.Namespaces.roleBindingKey;
 import static io.github.erfangc.iam.authz.services.Namespaces.roleKey;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
@@ -66,7 +66,7 @@ public class AuthorizeService {
             //
             // users only for now, but add support for groups in the future
             //
-            String subRoleMappingNS = "iam:bindings:subs:";
+            String subRoleMappingNS = "iam:role-bindings:subs:";
             final Set<String> bindingIds = sync.smembers(subRoleMappingNS + "user:" + sub);
             if (bindingIds.isEmpty()) {
                 logger.info("Access is denied to sub={} resource={} action={}", accessRequest.getSub(), accessRequest.getResource(), accessRequest.getAction());
@@ -74,10 +74,10 @@ public class AuthorizeService {
             } else {
                 for (String bindingId : bindingIds) {
                     //
-                    // find the role the binding refers to (this potentially can speed up)
+                    // find the role the roleBinding refers to (this potentially can speed up)
                     //
-                    Binding binding = objectMapper.readValue(sync.get(bindingKey(bindingId)), Binding.class);
-                    final String roleId = binding.getRoleId();
+                    RoleBinding roleBinding = objectMapper.readValue(sync.get(roleBindingKey(bindingId)), RoleBinding.class);
+                    final String roleId = roleBinding.getRoleId();
                     final String roleKey = roleKey(roleId);
                     if (sync.exists(roleKey) == 1) {
                         Role role = objectMapper.readValue(sync.get(roleKey), Role.class);

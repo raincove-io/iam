@@ -1,7 +1,7 @@
 package io.github.erfangc.iam.authz.models;
 
 
-public class DeleteBindingResponse {
+public class DeleteRoleBindingResponse {
 
     private String message;
     private String timestamp;
@@ -10,7 +10,7 @@ public class DeleteBindingResponse {
         return this.message;
     }
 
-    public DeleteBindingResponse setMessage(String message) {
+    public DeleteRoleBindingResponse setMessage(String message) {
         this.message = message;
         return this;
     }
@@ -19,7 +19,7 @@ public class DeleteBindingResponse {
         return this.timestamp;
     }
 
-    public DeleteBindingResponse setTimestamp(String timestamp) {
+    public DeleteRoleBindingResponse setTimestamp(String timestamp) {
         this.timestamp = timestamp;
         return this;
     }

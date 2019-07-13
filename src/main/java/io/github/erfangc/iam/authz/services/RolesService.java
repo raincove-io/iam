@@ -98,6 +98,7 @@ public class RolesService {
             throw roleNotFound(id);
         }
         sync.del(pk);
+        sync.srem(ROLE_NS, pk);
         ret.setMessage("Deleted");
         return ret;
     }
